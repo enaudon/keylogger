@@ -1,1 +1,12 @@
-test
+IMPORTANT: This doesn't do any keylogging right now. It just hijacks the
+getpid system call. It's a proof of concept.
+
+To install:
+navigate to the folder and type "make" in the terminal. You should
+get a keylogger.ko file if successful. To install the module, type
+"sudo insmod keylogger.ko" (if you're using Ubuntu. Otherwise, log into
+the root account and run insmod keylogger.ko).
+
+To remove module:
+type "sudo rmmod keylogger" for Ubuntu. For other linux distributions, you
+must be logged into the root account.
