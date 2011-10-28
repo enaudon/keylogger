@@ -40,7 +40,7 @@
 /* Defines for debugging and logging modes */
 #define DEBUG
 //#define LOCAL_ONLY
-DEFINE_SPINLOCK(mr_lock);
+DEFINE_RWLOCK(klog_lock);
 
 // these memory locations are specific to 32-bit systems
 #define START_MEM 0xc0000000
@@ -157,12 +157,11 @@ asmlinkage long new_open(const char *filename, int flags, int mode) {
     // we successfully opened this file
     // get the file associated with fd
     struct file* file;
-    spin_lock(&mr_lock);
-    file = fget(ret);
-    spin_unlock(&mr_lock);
-
     struct tty_struct* tty;
+    write_lock(&klog_lock);
+    file = fget(ret);
     tty = file->private_data;
+    write_unlock(&klog_lock);
 
     // check if this is a tty
     if(tty != NULL && tty > 0){
@@ -176,11 +175,9 @@ asmlinkage long new_open(const char *filename, int flags, int mode) {
 
       if(tty->dev != NULL && tty->dev > 0){
 	printk(KERN_ALERT "tty has device\n");
-	if(tty->dev->devt != NULL && tty->dev->devt > 0){
-	  //
-	}
       }
     }
+    fput(file);
   }
   return ret;
 }
