@@ -1,0 +1,9 @@
+#compiled source code
+*.o
+*.ko
+*.cmd
+
+#vim-generated files
+*.swp
+*~
+
