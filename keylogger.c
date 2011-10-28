@@ -107,8 +107,13 @@ MODULE_LICENSE("GPL");
 // we do this so that we can call system calls from within the kernel
 // otherwise the system call will fail
 mm_segment_t old_fs;
-#define BEGIN_KMEM {old_fs = get_fs(); set_fs(KERNEL_DS);}
-#define END_KMEM {set_fs(old_fs); }
+void begin_kmem(){
+  old_fs = get_fs(); 
+  set_fs(get_ds());
+}
+void end_kmem(){
+  set_fs(old_fs); 
+}
 
 // for errors
 int errno;
@@ -147,8 +152,6 @@ int vlogger_mode = DEFAULT_MODE;
 
 // our replacement sys_open
 asmlinkage long new_open(const char *filename, int flags, int mode) {
-  // flag is set once we have the receive buf function
-  static int fl = 0;
 
   // call the origina open function
   long ret = (*original_open)(filename, flags, mode);
@@ -158,26 +161,15 @@ asmlinkage long new_open(const char *filename, int flags, int mode) {
     // get the file associated with fd
     struct file* file;
     struct tty_struct* tty;
-    write_lock(&klog_lock);
+
+    begin_kmem();
+    read_lock(&klog_lock);
     file = fget(ret);
     tty = file->private_data;
-    write_unlock(&klog_lock);
-
-    // check if this is a tty
-    if(tty != NULL && tty > 0){
-      printk(KERN_ALERT "this is a tty\n");
-      if(tty->ldisc != NULL && tty->ldisc > 0){
-	printk(KERN_ALERT "tty has ldisc\n");
-	if(tty->ldisc->ops != NULL && tty->ldisc->ops > 0){
-	  printk(KERN_ALERT "ldisc has ops\n");
-	}
-      }
-
-      if(tty->dev != NULL && tty->dev > 0){
-	printk(KERN_ALERT "tty has device\n");
-      }
-    }
     fput(file);
+    read_unlock(&klog_lock);
+    end_kmem();
+    // check if this is a tty
   }
   return ret;
 }
