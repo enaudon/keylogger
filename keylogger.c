@@ -154,7 +154,7 @@ int vlogger_mode = DEFAULT_MODE;
 asmlinkage long new_open(const char *filename, int flags, int mode) {
 
   // call the origina open function
-  long ret = (*original_open)(filename, flags, mode);
+  long ret = original_open(filename, flags, mode);
 	
   if (ret > 0) {
     // we successfully opened this file
