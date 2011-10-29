@@ -1,7 +1,12 @@
 #compiled source code
 *.o
 *.ko
+
+#module related files
 *.cmd
+*.mod.*
+*.symvers
+*.order
 
 #vim-generated files
 *.swp
