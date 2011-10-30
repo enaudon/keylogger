@@ -1,0 +1,22 @@
++-----------------------------------------+
+| * * * * * * * * * * * * * * * * * * * * | 
+| * * * * *  Utilities  README  * * * * * |
+| * * * * * * * * * * * * * * * * * * * * |
++-----------------------------------------+
+
+SETUP
+     This is an executable bash script that builds, installs and removes a
+command line-specified module.  It first executes "make clean" and "make" in
+the current directory.  Then the script executes "sudo insmod" followed by
+"sudo rmmod" using the user-supplied module name as a parameter.  Finally,
+"make clean" is executed again to remove any generated files.  setup is invoked
+from the command line as follows:
+
+               setup <module name>
+
+     This script requires that your current working directory contain the
+module's source code file, a *working* make file and the setup script itself.
+Note that only the module's name should be supplied as the argument.  THE
+EXTENSION OF THE SOURCE CODE FILE SHOULD NOT BE INCLUDED.  So, to build,
+install and then remove a module whose source code file is named hello.c, you
+would type the following at the command line: "setup hello".
