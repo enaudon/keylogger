@@ -17,7 +17,6 @@
  *
  */
 
-#define _KERNEL_SYSCALLS_ // from vlogger
 #include <linux/init.h> // required for module_init/exit
 #include <linux/module.h> // required for module development
 #include <linux/kernel.h> // since we're dealing with the kerne
@@ -27,20 +26,13 @@
 #include <linux/tty.h> // to use ttys
 #include <linux/tty_driver.h> // for tty constants
 #include <linux/file.h> // for file stuff like fget
-#include <linux/device.h>
-
-#include <linux/version.h>
-#include <linux/spinlock.h> // spin locks
-#include <linux/sched.h> // using the task struct
-#include <linux/string.h> // string stuff
-#include <asm/uaccess.h>
+#include <linux/spinlock.h>
+#include <linux/smp_lock.h>
 #include <linux/proc_fs.h> // to use file struct
-#include <asm/io.h>
 
 /* Defines for debugging and logging modes */
 #define DEBUG
 //#define LOCAL_ONLY
-DEFINE_RWLOCK(klog_lock);
 
 // these memory locations are specific to 32-bit systems
 #define START_MEM 0xc0000000
@@ -107,11 +99,11 @@ MODULE_LICENSE("GPL");
 // we do this so that we can call system calls from within the kernel
 // otherwise the system call will fail
 mm_segment_t old_fs;
-void begin_kmem(){
+static inline void begin_kmem(void){
   old_fs = get_fs(); 
   set_fs(get_ds());
 }
-void end_kmem(){
+static inline void end_kmem(void){
   set_fs(old_fs); 
 }
 
@@ -159,17 +151,30 @@ asmlinkage long new_open(const char *filename, int flags, int mode) {
   if (ret > 0) {
     // we successfully opened this file
     // get the file associated with fd
-    struct file* file;
-    struct tty_struct* tty;
+    struct file* file = NULL;
+    struct tty_struct* tty = NULL;
 
-    begin_kmem();
-    read_lock(&klog_lock);
     file = fget(ret);
     tty = file->private_data;
-    fput(file);
-    read_unlock(&klog_lock);
-    end_kmem();
-    // check if this is a tty
+    // test the validity of the tty
+    if(tty != NULL){
+      begin_kmem();
+      lock_kernel();
+      printk(KERN_ALERT "tty address is %08x\n",tty);
+      struct device* dev = NULL;
+      dev = tty->dev;
+      if (dev != NULL){
+	printk(KERN_ALERT "tty has device at %08x\n", dev);
+	if(dev->devt != NULL){
+	  printk(KERN_ALERT "devt is %u\n",dev->devt);
+	}
+      }
+      struct tty_driver* driver = NULL;
+      driver = tty->driver;
+      end_kmem();
+      unlock_kernel();
+    }
+    if(file != NULL) fput(file);
   }
   return ret;
 }
@@ -185,7 +190,7 @@ static int init(void) {
     unsigned long *current_address = (unsigned long*)i;
     if(current_address[__NR_close] == sys_close){
       #ifdef DEBUG
-      printk(KERN_ALERT "sys call table address is %lu\n",
+      printk(KERN_ALERT "sys call table address is %08x\n",
 	     (unsigned long)current_address);
       #endif
 
