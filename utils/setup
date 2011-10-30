@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#grab cmd line args
+args=("$@")
+
+#clean up old files and make
+make clean
+make
+
+#install and remove the module
+sudo insmod ${args[0]}.ko
+sudo rmmod ${args[0]}
+
+#get rit of compiled source
+make clean
+
+
