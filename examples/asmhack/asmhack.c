@@ -8,6 +8,7 @@
 #include <linux/mman.h>
 #include <linux/module.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
 MODULE_LICENSE("DUAL BSD/GPL");
 
 #define JMP_BYTES 7
@@ -15,8 +16,8 @@ MODULE_LICENSE("DUAL BSD/GPL");
 //sys_getpid address (system-specific)
 long (*getpid)(void) = (void *)0xC1067F20;
 
-//semaphores
-static struct semaphore gp_sem;
+//locks
+spinlock_t gp_spin = SPIN_LOCK_UNLOCKED;
 
 //original and replacement instructions at sys_getpid
 static char orig_instr[JMP_BYTES];
@@ -43,14 +44,13 @@ void *_memcpy(void *dest, const void *src, int bytes) {
 asmlinkage long hacked_getpid(void) {
   long pid;  //sys_getpid return value
 
+  printk(KERN_ALERT "All your base are belong to us.\n");
+
   /* Critical Section */
-  printk(KERN_ALERT "Entering critical section... \n");
-  down(&gp_sem);
-  printk(KERN_ALERT "  done!\n");
+  spin_lock(&gp_spin);
 
   //remove write protection
   write_cr0 (read_cr0 () & (~0x10000));
-  printk(KERN_ALERT "Write protection disabled.\n");
 
   //restore getpid, call it and overwrite it again
   _memcpy(getpid, orig_instr, JMP_BYTES);  //restore
@@ -59,11 +59,8 @@ asmlinkage long hacked_getpid(void) {
 
   //reenable write protection
   write_cr0 (read_cr0 () | 0x10000);
-  printk(KERN_ALERT "Write protection enabled.\n");
 
-  printk(KERN_ALERT "Exiting critical section... \n");
-  up(&gp_sem);
-  printk(KERN_ALERT "  done!\n");
+  spin_unlock(&gp_spin);
   /* End Critical Section */
 
   return pid;
@@ -78,21 +75,18 @@ static int hello_init(void) {
   //get addr of hacked_getpid into asm framework
   *(long *)&repl_instr[1] = (unsigned)hacked_getpid;
 
-  //save and overwrite the bytes at getpid
+  //save the bytes at getpid
   _memcpy(orig_instr, getpid, JMP_BYTES);
-  _memcpy(orig_instr, repl_instr, JMP_BYTES);
 
 
   //remove write protection
   write_cr0 (read_cr0 () & (~0x10000));
-  printk(KERN_ALERT "Write protection disabled.\n");
 
   //THIS LINE CAUSES THE CRASH (i think...)
   _memcpy(getpid, repl_instr, JMP_BYTES);
 
   //reenable write protection
   write_cr0 (read_cr0 () | 0x10000);
-  printk(KERN_ALERT "Write protection enabled.\n");
 
   return 0;
 }
@@ -101,8 +95,14 @@ static int hello_init(void) {
  */
 static void hello_exit(void) {
 
+  //remove write protection
+  write_cr0 (read_cr0 () & (~0x10000));
+
   //replace original getpid bytes
   _memcpy(getpid, orig_instr, JMP_BYTES);
+
+  //reenable write protection
+  write_cr0 (read_cr0 () | 0x10000);
 
   printk(KERN_ALERT "Goodbye, world!\n");
 }
