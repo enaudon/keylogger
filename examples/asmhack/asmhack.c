@@ -58,10 +58,9 @@ void *_memcpy(void *dest, const void *src, int bytes) {
 /*Module initialization.
  */
 static int asm_init(void) {
-  printk(KERN_ALERT "Hello, world!\n");
 
   //get addr of hacked_getpid into asm framework
-  *(long *)&repl_instr[1] = (unsigned)hacked_getpid;
+  *(long *)&repl_instr[1] = (long)hacked_getpid;
 
   //save original bytes at getpid
   _memcpy(orig_instr, getpid, JMP_BYTES);
@@ -82,8 +81,6 @@ static void asm_exit(void) {
   write_cr0 (read_cr0 () & (~0x10000));    //disable write-protection
   _memcpy(getpid, orig_instr, JMP_BYTES);  //restore original bytes
   write_cr0 (read_cr0 () | 0x10000);       //reenable write-protection
-
-  printk(KERN_ALERT "Goodbye, world!\n");
 }
 
 module_init(asm_init);
