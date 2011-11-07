@@ -1,0 +1,38 @@
+asmhack
+----------------------------------------
+     This module implements a neat little function hijacking technique capable
+of hijacking pretty much any function except for inline functions.  (Daniela
+tells me that this is because calls to inline functions behave more like macro
+expansion than actual function calls.)
+     This is just a proof of concept, so asmhack hijacks the getpid function.
+Upon installation, asmhack rewrites the first couple (specifically, seven)
+bytes of getpid with some raw machine code.  The machine code essentially
+encodes a jump to the hacked_getpid function specified in the module.  The
+hacked_getpid function simply calls the original getpid function.  (Some fancy
+footwork with regard to the aforementioned bytes is required to avoid a sickly
+twisted, infinitely recursive loop.)
+     Upon removal, asmhack replaces the overwritten bytes at getpid.
+
+helloworld
+----------------------------------------
+     As its name might suggest to the astute reader, this module is painfully
+trivial: it prints a message upon installation.  What even the astute reader
+might not have guessed is that this module aslo prints another message upon
+removal from the kernal.  Whoopty freakin doo.
+     No but really, I use this module as a template for other stuff if I want
+to build from scratch, as is usually the case.
+
+sc_hijack
+----------------------------------------
+IMPORTANT: This doesn't do any keylogging right now. It just hijacks the
+getpid system call. It's a proof of concept.
+
+To install:
+navigate to the folder and type "make" in the terminal. You should
+get a keylogger.ko file if successful. To install the module, type
+"sudo insmod keylogger.ko" (if you're using Ubuntu. Otherwise, log into
+the root account and run insmod keylogger.ko).
+
+To remove module:
+type "sudo rmmod keylogger" for Ubuntu. For other linux distributions, you
+must be logged into the root account.

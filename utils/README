@@ -1,10 +1,5 @@
-+-----------------------------------------+
-| * * * * * * * * * * * * * * * * * * * * | 
-| * * * * *  Utilities  README  * * * * * |
-| * * * * * * * * * * * * * * * * * * * * |
-+-----------------------------------------+
-
-SETUP
+setup
+----------------------------------------
      This is an executable bash script that builds, installs and removes a
 command line-specified module.  It first executes "make clean" and "make" in
 the current directory.  Then the script executes "sudo insmod" followed by
@@ -21,7 +16,8 @@ EXTENSION OF THE SOURCE CODE FILE SHOULD NOT BE INCLUDED.  So, to build,
 install and then remove a module whose source code file is named hello.c, you
 would type the following at the command line: "setup hello".
 
-SYSCALL.ASM
+syscall.asm
+----------------------------------------
      This is an assembly language program written for 32-bit linux systems, to
 be assembled with nasm and linked with ld.  (The included make file should
 handle all that for you.)  This program just makes a call to a hardcoded system

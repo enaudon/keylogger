@@ -1,4 +1,0 @@
-HELLOWORLD MODULE
-     As its name might suggest to the astute reader, this module is painfully
-trivial: it prints a message upon installation, and prints another upon
-removal from the kernal.  That is all it does.  Call it a template if you like.
