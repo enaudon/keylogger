@@ -36,3 +36,12 @@ the root account and run insmod keylogger.ko).
 To remove module:
 type "sudo rmmod keylogger" for Ubuntu. For other linux distributions, you
 must be logged into the root account.
+
+timers
+----------------------------------------
+     This is just a template module for using kernel-level timers.  Its just a
+helloworld timer example: it sets up a timer that calls a function ever 5
+seconds; the callback function just prints a (very annoying) message and
+re-cocks the timer, as it were.  Again, this is for use as a template for any
+modules that might need to use timers, or as a guide for any such modules.
+
