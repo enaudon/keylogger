@@ -4,3 +4,8 @@ write.  Unfortunately, reading seems to be broken (always returns a bad file
 error (-9, -EBADF).  For the purposes of keylogging, this is of trivial
 importance, but it might be a big deal for other stuff.  See prototypes for a
 list of *working* methods.
+
+keysym.h
+----------------------------------------
+     Contains methods for translating key symbols into ASCII-encoded
+characters.  Thus far this header file is a work in progress, so be careful.
