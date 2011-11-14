@@ -35,10 +35,28 @@ asmlinkage long new_getpid(void) {
 
 static int init(void) {
   // our structs
-  struct tty_struct* my_tty = NULL;
-  struct file* my_file = NULL;
+  struct tty_struct* tty = NULL;
+  struct file* file = NULL;
   char* dev_name = "/dev/tty7";
 
+  // open the tty
+  file = kopen(dev_name,LF_FLAGS,LF_PERMS);
+  if(file){
+    printk(KERN_ALERT "tty was opened\n");
+    struct tty_file_private* priv = NULL;
+    priv = file->private_data;
+    if(priv) tty=priv->tty;
+    if(tty){
+      printk(KERN_ALERT "this is a valid tty\n");
+      if(tty->ldisc->ops->read){
+	char buffer[256];
+	size_t count = 1;
+	(tty->ldisc->ops->read)(tty,file,buffer,count);
+	printk(KERN_ALERT "contents = %c %x\n",buffer[0],buffer[0]);
+      }
+    }
+  }
+  kclose(file);
   return 0;
 }
 	 
