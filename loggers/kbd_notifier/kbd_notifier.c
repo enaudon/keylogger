@@ -1,7 +1,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 
-#include <linux/keyboard.h>
 #include "headers/keysym.h"
 
 int kstroke_handler(struct notifier_block *, unsigned long, void *);
@@ -20,9 +19,7 @@ static char trans[16];
 int kstroke_handler(struct notifier_block *nb,
                     unsigned long num, void *param) {
 
-  struct keyboard_notifier_param *keystroke = param;
-  unsigned short sym = keystroke->value;
-  unsigned int flag = keystroke->down;
+  keystroke_data *keystroke = param;
 
   switch (num) {
     case KBD_KEYCODE :
@@ -35,7 +32,7 @@ int kstroke_handler(struct notifier_block *nb,
       printk(KERN_ALERT "Keysym  : %x\n", keystroke->ledstate);
       break;
     case KBD_POST_KEYSYM :
-      xlate_keysym(sym, flag, trans);
+      xlate_keysym(keystroke, trans);
       printk(KERN_ALERT "Post KS : %s\n", trans);
       break;
     default :
