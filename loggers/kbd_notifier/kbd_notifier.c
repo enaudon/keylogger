@@ -29,7 +29,7 @@ int kstroke_handler(struct notifier_block *nb,
     case KBD_UNICODE :
       printk(KERN_ALERT "Unicode?\n"); break;
     case KBD_KEYSYM :
-      printk(KERN_ALERT "Keysym  : %x\n", keystroke->ledstate);
+      printk(KERN_ALERT "Keysym  : %x\n", keystroke->value);
       break;
     case KBD_POST_KEYSYM :
       xlate_keysym(keystroke, trans);
