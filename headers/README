@@ -1,11 +1,12 @@
 FILE.H
      Contains methods relating to file io in kernel-space: open, close, read
-write.  Unfortunately, reading seems to be broken (always returns a bad file
-error (-9, -EBADF).  For the purposes of keylogging, this is of trivial
-importance, but it might be a big deal for other stuff.  See prototypes for a
-list of *working* methods.
+write.  See prototypes for a list of *working* methods.
 
 keysym.h
 ----------------------------------------
      Contains methods for translating key symbols into ASCII-encoded
-characters.  Thus far this header file is a work in progress, so be careful.
+characters.  There are a variety of functions, each specific to a particular
+key symbol type, and a wrapper function that selects the appropriate
+translation function.  The individual translation functions shouldn't be called
+directly.  I make no guarantee that they'll work without the wrapper, so just
+call the wrapper.  See comments for details on how to call the wrapper.

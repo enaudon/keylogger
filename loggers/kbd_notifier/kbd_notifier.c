@@ -17,11 +17,11 @@ static char trans[16];
  *No, I don't know what the parameters are/do.
  */
 int kstroke_handler(struct notifier_block *nb,
-                    unsigned long num, void *param) {
+                    unsigned long mode, void *param) {
 
   keystroke_data *keystroke = param;
 
-  switch (num) {
+  switch (mode) {
     case KBD_KEYCODE :
       printk(KERN_ALERT "Keystroke!\n"); break;
     case KBD_UNBOUND_KEYCODE:
