@@ -82,6 +82,7 @@ typedef struct keyboard_notifier_param keystroke_data;
  *Parameters:
  *  ks   - keystroke_data (keyboard_notifier_param)
  *  buf  - string representation output buffer
+ *
  *Returns:
  *  none - result in output buffer
  */
@@ -91,8 +92,8 @@ static void ksym_num(keystroke_data *ks, char *buf);
 static void ksym_mod(keystroke_data *ks, char *buf);
 
 //key symbol to string tables
-//the ascii table should be enlarged to an extended ascii table (perhaps a
-//common one like latin-1?)
+//the ascii table should be enlarged to support an extended character set
+//(perhaps a common one like latin-1?)
 char *ascii[128] = {
   NO_EFCT, "<SOH>", "<STX>", "<ETX>", "<EOT>", "<ENQ>", "<ACK>", "<BEL>",
   "<BS>",  "<TAB>", "<LF>",  "<VT>",  "<FF>",  "<CR>",  "<SO>",  "<SI>",
@@ -126,6 +127,7 @@ char *mods[4] = {"<shift _>", UNKNOWN, "<ctrl _>", "<alt _>"};
  *Parameters:
  *  ks_param - keystroke data
  *  buf      - output buffer
+ *
  *Returns:
  *  ni nada
  */
@@ -157,29 +159,48 @@ void xlate_keysym(keystroke_data *ks_param, char *buf) {
 }
 
 /*Translates normal keys.
- *Index into array to string representation of ascii characters on key-press
- *events; ignore key-release events.
- *I realize that for displayable ascii characters I could have just returned
- *the value cast as a character.  However, I opted for a 128 string table
- *because it handles ANY ascii value rather than just the ones that most
- *keyboards support.  (Ok, so it doesn't handle extended ascii obviously, but
- *you get the idea.)
+ *Index into array to get string representations of ascii characters on
+ *key-press events.  For printable characters, that's just the character
+ *itself; for control characters, that's an abreviation of their function.
+ *Key-release events are ignored.
+ *
+ *Note:
+ *For printable ascii characters I could have just returned the key symbol
+ *value cast as a character.  However, I opted for a large table because it can
+ *also handle control values, and is more easily modified to support an
+ *extended ascii character set.
  */
 static void ksym_std(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
 
-  if (ks->down) snprintf(buf, BUFMAX, "%s", ascii[val]);
-  else          buf[0] = 0x00;
+  //ignore key-release events
+  if (!ks->down) {
+    buf[0] = 0x00;
+    return;
+  }
+
+  //otherwise return string representation
+  snprintf(buf, BUFMAX, "%s", ascii[val]);
 }
 
 /*Translates f-keys and the keys typically above the arrow buttons.
- *It looks to me like the high nybble of the value field is used as a type
- *indicator in this case.  The f-keys all have the high nybble cleared, and the
- *low nybble gives the value of the f-key.  Most standard keyboards have 12
- *f-keys, so not all possible values of the low nybble are used, but since some
- *keyboards have more than 12 f-keys (see the keyboards in 224 for example),
- *I translate any value that will fit into the low nybble into an f-key string.
- *To handle the other keys, I use an array of strings as usual.
+ *If the high nybble of the keyboard_notifier_param's value field (ks->value)
+ *is zero'd, we're dealing with an f-key; otherwise we're dealing with one of
+ *the keys above the arrow pad.  F-keys are handled by inserting the low nybble
+ *of the value field, incremented by 1, into a predefined string. The low
+ *nybble+1 is the f-key's number. For example:
+ *
+ *                          +-----------------type
+ *                          |      +----------val
+ *                          |      |
+ *  ks->value = 0xf103 = | 0xf1 | 0x03 |
+ *                                 |
+ *                +----------------+
+ *                |
+ *  buf = "<f" + val+1 + ">" = "<f3>"
+ *
+ *Non-f-keys are handled by using the low nybble of the value field to index
+ *into an array of string represenations.
  *
  *NOTE: for testing purposes, try to get your hands on one of the keyboards in
  *      224 (19 f-keys).
@@ -188,18 +209,20 @@ static void ksym_fnc(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
 
   //ignore key-release events
-  if (!ks->down)
+  if (!ks->down) {
     buf[0] = 0x00;
+    return;
+  }
 
-  //non-f-keys when the high nybble isn't cleared
-  else if (val & 0xf0) snprintf(buf, BUFMAX, "%s", fncs[val&0x0f]);
-  else                 snprintf(buf, BUFMAX, "%s%d%c", F_KEYS, val+1, '>');
+  //non-f-keys when the high nybble isn't zero'd
+  if (val & 0xf0) snprintf(buf, BUFMAX, "%s", fncs[val&0x0f]);
+  else            snprintf(buf, BUFMAX, "%s%d%c", F_KEYS, ++val, '>');
 }
 
 /*Translates number pad keys.
- *The ledstate field of the keystroke param must be parsed to determine
- *whether numlock is enabled or not.  See defines for more info on how
- *ledstate is handled.
+ *The ledstate field of the keyboard_notifier_param must be parsed to determine
+ *whether numlock is enabled or not.  See header description for more info on
+ *how ledstate is handled.
  */
 static void ksym_num(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
@@ -208,11 +231,13 @@ static void ksym_num(keystroke_data *ks, char *buf) {
   if (val > 16) return;
 
   //ignore key-release events
-  if (!ks->down)
+  if (!ks->down) {
     buf[0] = 0x00;
+    return;
+  }
 
   //values depend on the state of numlock
-  else if (ks->ledstate & NLOCK_MASK)
+  if (ks->ledstate & NLOCK_MASK)
     snprintf(buf, BUFMAX, "%s", locked_npad[val]);
   else if (!(ks->ledstate & NLOCK_MASK))
     snprintf(buf, BUFMAX, "%s", unlocked_npad[val]);
@@ -220,8 +245,8 @@ static void ksym_num(keystroke_data *ks, char *buf) {
 
 /*Translates normal modifier keys.
  *Return the appropriate string on both key-press and key-release events.  An
- *event-specific character is added to the strings (p for press, r for
- *release events).
+ *event-specific character is inserted into the string to indicate key pressure
+ *(p for press, r for release events).
  */
 static void ksym_mod(keystroke_data *ks, char *buf) {
   int len;
