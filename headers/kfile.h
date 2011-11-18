@@ -88,3 +88,20 @@ int kread(file* file, loff_t off, char *buf, unsigned int size) {
   return ret;
 }
 
+/*
+ *These methods should be implemented at some point.  (They provide good
+ *encapsulation.)  Although, the KERNEL_DS part should be changed to get_ds(),
+ *as above.  (More general applicability that way.)
+
+static mm_segment_t old_fs;
+
+static inline void begin_kmem(void){
+  old_fs = get_fs();
+  set_fs(KERNEL_DS);
+}
+
+static inline void end_kmem(void){
+  set_fs(old_fs);
+}
+*/
+
