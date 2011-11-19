@@ -52,7 +52,7 @@
 #include <linux/keyboard.h>
 
 //maximum output buffer size
-#define BUFMAX 16
+#define BUFLEN 65535
 
 //ledstate bitmasks
 #define SLOCK_MASK 0x0000001  //bit 0 = scroll lock
@@ -104,7 +104,7 @@ char *ascii[128] = {
   "@","A","B", "C","D","E","F","G","H","I","J","K","L", "M","N","O",
   "P","Q","R", "S","T","U","V","W","X","Y","Z","[","\\","]","^","_",
   "`","a","b", "c","d","e","f","g","h","i","j","k","l", "m","n","o",
-  "p","q","r", "s","t","u","v","w","x","y","z","{","|", "}","~", "<DEL>"};
+  "p","q","r", "s","t","u","v","w","x","y","z","{","|", "}","~","<DEL>"};
 char *fncs[16] = {UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
                   HOME, INSERT, DELETE, END,
                   PAGE_UP, PAGE_DN, UNKNOWN, UNKNOWN,
@@ -112,8 +112,8 @@ char *fncs[16] = {UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
 char *locked_npad[17] = {"0", "1", "2", "3",
                          "4", "5", "6", "7",
                          "8", "9", "+", "-",
-                          "*", "/", ENTER, UNKNOWN,
-                          "."};
+                         "*", "/", ENTER, UNKNOWN,
+                         "."};
 char *unlocked_npad[17] = {INSERT, END, ARW_DN, PAGE_DN,
                            ARW_LT, NO_EFCT, ARW_RT, HOME,
                            ARW_UP, PAGE_UP, "+", "-",
@@ -174,13 +174,10 @@ static void ksym_std(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
 
   //ignore key-release events
-  if (!ks->down) {
-    buf[0] = 0x00;
-    return;
-  }
+  if (!ks->down) return;
 
   //otherwise return string representation
-  snprintf(buf, BUFMAX, "%s", ascii[val]);
+  strlcat(buf, ascii[val], BUFLEN);
 }
 
 /*Translates f-keys and the keys typically above the arrow buttons.
@@ -197,7 +194,7 @@ static void ksym_std(keystroke_data *ks, char *buf) {
  *                                 |
  *                +----------------+
  *                |
- *  buf = "<f" + val+1 + ">" = "<f3>"
+ *  buf = "<f" + val+1 + ">" = "<f4>"
  *
  *Non-f-keys are handled by using the low nybble of the value field to index
  *into an array of string represenations.
@@ -209,14 +206,12 @@ static void ksym_fnc(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
 
   //ignore key-release events
-  if (!ks->down) {
-    buf[0] = 0x00;
-    return;
-  }
+  if (!ks->down) return;
 
   //non-f-keys when the high nybble isn't zero'd
-  if (val & 0xf0) snprintf(buf, BUFMAX, "%s", fncs[val&0x0f]);
-  else            snprintf(buf, BUFMAX, "%s%d%c", F_KEYS, ++val, '>');
+  if (val & 0xf0) strlcat(buf, fncs[val&0x0f], BUFLEN);
+  else            snprintf(buf[strlen(buf)-1], BUFLEN, "%s%d%c",
+                           F_KEYS, ++val, '>');
 }
 
 /*Translates number pad keys.
@@ -230,17 +225,15 @@ static void ksym_num(keystroke_data *ks, char *buf) {
   //just in case
   if (val > 16) return;
 
+
   //ignore key-release events
-  if (!ks->down) {
-    buf[0] = 0x00;
-    return;
-  }
+  if (!ks->down) return;
 
   //values depend on the state of numlock
   if (ks->ledstate & NLOCK_MASK)
-    snprintf(buf, BUFMAX, "%s", locked_npad[val]);
+    strlcat(buf, locked_npad[val], BUFLEN);
   else if (!(ks->ledstate & NLOCK_MASK))
-    snprintf(buf, BUFMAX, "%s", unlocked_npad[val]);
+    strlcat(buf, unlocked_npad[val], BUFLEN);
 }
 
 /*Translates normal modifier keys.
@@ -256,7 +249,7 @@ static void ksym_mod(keystroke_data *ks, char *buf) {
   if (val > 3) return;
 
   //translate mod key to string
-  len = snprintf(buf, BUFMAX, "%s", mods[val]);
+  len = strlcat(buf, mods[val], BUFLEN);
 
   //add pressure indicator
   buf[len - 2] = ks->down ? 'p' : 'r';
