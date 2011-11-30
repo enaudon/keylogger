@@ -204,14 +204,19 @@ static void ksym_std(keystroke_data *ks, char *buf) {
  */
 static void ksym_fnc(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
+  char temp[6];
 
   //ignore key-release events
   if (!ks->down) return;
 
   //non-f-keys when the high nybble isn't zero'd
   if (val & 0xf0) strlcat(buf, fncs[val&0x0f], BUFLEN);
-  else            snprintf(buf[strlen(buf)-1], BUFLEN, "%s%d%c",
-                           F_KEYS, ++val, '>');
+
+  //f-key otherwise
+  else {
+    snprintf(temp, 6, "%s%d>", F_KEYS, ++val);
+    strlcat(buf, temp, BUFLEN);
+  }
 }
 
 /*Translates number pad keys.

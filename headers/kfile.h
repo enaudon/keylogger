@@ -18,7 +18,7 @@ void kclose(file *file);
   mm_segment_t old_fs = get_fs();\
   set_fs(get_ds());
 
-/*Restore the pointer range that the fs will take.
+/*Restore the pointer range that the fs will accept.
  */
 #define RESTORE_FS \
   set_fs(old_fs);
@@ -34,7 +34,7 @@ void kclose(file *file);
  *  pointer to file struct
  */
 file* kopen(const char *fp, int flags, int mode) {
-  file* file = NULL;
+  file *file = NULL;
 
   //open the file
   MODIFY_FS
