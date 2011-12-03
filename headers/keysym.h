@@ -55,8 +55,11 @@
 #define BUFLEN 65535
 
 //ledstate bitmasks
-#define SLOCK_MASK 0x0000001  //bit 0 = scroll lock
-#define NLOCK_MASK 0x0000002  //bit 1 = num lock
+#define SLOCK_MASK 0x00000001   //bit 0 = scroll lock
+#define NLOCK_MASK 0x00000002   //bit 1 = num lock
+
+//shift bitmasks
+#define CLOCK_MASK 0x00000040   //bit 6 = caps lock
 
 //string representations for common keys
 #define UNKNOWN "<unkn>"
@@ -74,6 +77,17 @@
 #define ARW_LT  "<l arw>"
 #define ARW_RT  "<r arw>"
 #define F_KEYS  "<f"  //no, i didn't forget the end
+#define CAPLOCK "<cap _>"
+#define NUMLOCK "<num _>"
+#define SCRLOCK "<scl _>"
+
+//string representations for key pressure
+#define PRESS   'p'
+#define RELEASE 'r'
+
+//string representations for (cap/num/scroll) lock status
+#define ENABLE  'e'
+#define DISABLE 'd'
 
 typedef struct keyboard_notifier_param keystroke_data;
 
@@ -88,12 +102,13 @@ typedef struct keyboard_notifier_param keystroke_data;
  */
 static void ksym_std(keystroke_data *ks, char *buf);
 static void ksym_fnc(keystroke_data *ks, char *buf);
+static void ksym_arw(keystroke_data *ks, char *buf);
 static void ksym_num(keystroke_data *ks, char *buf);
 static void ksym_mod(keystroke_data *ks, char *buf);
+static void ksym_cap(keystroke_data *ks, char *buf);
 
-//key symbol to string tables
-//the ascii table should be enlarged to support an extended character set
-//(perhaps a common one like latin-1?)
+//key symbol maps
+//the ascii table could be enlarged to support an extended character set
 char *ascii[128] = {
   NO_EFCT, "<SOH>", "<STX>", "<ETX>", "<EOT>", "<ENQ>", "<ACK>", "<BEL>",
   "<BS>",  "<TAB>", "<LF>",  "<VT>",  "<FF>",  "<CR>",  "<SO>",  "<SI>",
@@ -109,16 +124,17 @@ char *fncs[16] = {UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
                   HOME, INSERT, DELETE, END,
                   PAGE_UP, PAGE_DN, UNKNOWN, UNKNOWN,
                   UNKNOWN, PAU_BRK, UNKNOWN, UNKNOWN};
-char *locked_npad[17] = {"0", "1", "2", "3",
+char *locked_nums[17] = {"0", "1", "2", "3",
                          "4", "5", "6", "7",
                          "8", "9", "+", "-",
                          "*", "/", ENTER, UNKNOWN,
                          "."};
-char *unlocked_npad[17] = {INSERT, END, ARW_DN, PAGE_DN,
+char *unlocked_nums[17] = {INSERT, END, ARW_DN, PAGE_DN,
                            ARW_LT, NO_EFCT, ARW_RT, HOME,
                            ARW_UP, PAGE_UP, "+", "-",
                            "*", "/", ENTER, UNKNOWN,
                            DELETE};
+char *arws[4] = {ARW_DN, ARW_LT, ARW_RT, ARW_UP};
 char *mods[4] = {"<shift _>", UNKNOWN, "<ctrl _>", "<alt _>"};
 
 /*Wrapper for key symbol translation fucntions.
@@ -145,11 +161,11 @@ void xlate_keysym(keystroke_data *ks_param, char *buf) {
     case 0x3 : ksym_num(ks_param, buf);  break;
     case 0x4 : break;
     case 0x5 : break;
-    case 0x6 : break;
+    case 0x6 : ksym_arw(ks_param, buf);  break;
     case 0x7 : ksym_mod(ks_param, buf);  break;
     case 0x8 : break;
     case 0x9 : break;
-    case 0xa : break;
+    case 0xa : ksym_cap(ks_param, buf);  break;
     case 0xb : ksym_std(ks_param, buf);  break;
     case 0xc : break;
     case 0xd : break;
@@ -226,25 +242,42 @@ static void ksym_fnc(keystroke_data *ks, char *buf) {
  */
 static void ksym_num(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
+  int n_lock = ks->ledstate & NLOCK_MASK;
 
   //just in case
   if (val > 16) return;
-
 
   //ignore key-release events
   if (!ks->down) return;
 
   //values depend on the state of numlock
-  if (ks->ledstate & NLOCK_MASK)
-    strlcat(buf, locked_npad[val], BUFLEN);
-  else if (!(ks->ledstate & NLOCK_MASK))
-    strlcat(buf, unlocked_npad[val], BUFLEN);
+  if (n_lock)
+    strlcat(buf, locked_nums[val], BUFLEN);
+  else if (!n_lock)
+    strlcat(buf, unlocked_nums[val], BUFLEN);
+}
+
+/*Translates arrow pad keys.
+ *Index into the arrows character string array to obtain the appropriate string
+ *for a given arrow key.  Key release events are ignored.
+ */
+static void ksym_arw(keystroke_data *ks, char *buf) {
+  unsigned char val  = ks->value & 0x00ff;
+
+  //just in case
+  if (val > 3) return;
+
+  //ignore key-release events
+  if (!ks->down) return;
+
+  //translate arrow key to string
+  strlcat(buf, arws[val], BUFLEN);
 }
 
 /*Translates normal modifier keys.
- *Return the appropriate string on both key-press and key-release events.  An
- *event-specific character is inserted into the string to indicate key pressure
- *(p for press, r for release events).
+ *Appends the appropriate string to the output buffer on both key-press and
+ *key-release events.  An event-specific character is inserted into the string
+ *to indicate key pressure (p for press, r for release events).
  */
 static void ksym_mod(keystroke_data *ks, char *buf) {
   int len;
@@ -257,9 +290,30 @@ static void ksym_mod(keystroke_data *ks, char *buf) {
   len = strlcat(buf, mods[val], BUFLEN);
 
   //add pressure indicator
-  buf[len - 2] = ks->down ? 'p' : 'r';
+  buf[len - 2] = ks->down ? PRESS : RELEASE;
 }
 
-int disp(unsigned char value) {
-  return (value > 0x19 && value < 0x7F);
+/*Translates the capslock key.
+ *Appends the appropriate string to the output buffer on key-release events.  
+ *(Here we ignore key-press events because the caps lock state doesn't change
+ *until after the caps lock key is pressed.)  An event-specific character is
+ *inserted into the string to indicate the NEW capslock state (e for enabled,
+ *d for disabled).
+ */
+static void ksym_cap (keystroke_data *ks, char *buf) {
+  int len;
+  unsigned char val  = ks->value & 0x00ff;
+  int c_lock = ks->shift & CLOCK_MASK;
+ 
+  //ignore key-press events
+  if (ks->down) return;
+
+  if (val == 0x6) {
+    //translate mod key to string
+    len = strlcat(buf, CAPLOCK, BUFLEN);
+
+    //add lock status indicator
+    buf[len - 2] = c_lock ? ENABLE : DISABLE;
+  }
+  else strlcat(buf, UNKNOWN, BUFLEN);
 }
