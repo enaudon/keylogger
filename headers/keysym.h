@@ -64,6 +64,7 @@
 //string representations for common keys
 #define UNKNOWN "<unkn>"
 #define NO_EFCT "<null>"
+#define MENU    "<menu>"
 #define ENTER   "<ent>"
 #define INSERT  "<ins>"
 #define DELETE  "<del>"
@@ -102,6 +103,7 @@ typedef struct keyboard_notifier_param keystroke_data;
  */
 static void ksym_std(keystroke_data *ks, char *buf);
 static void ksym_fnc(keystroke_data *ks, char *buf);
+static void ksym_loc(keystroke_data *ks, char *buf);
 static void ksym_arw(keystroke_data *ks, char *buf);
 static void ksym_num(keystroke_data *ks, char *buf);
 static void ksym_mod(keystroke_data *ks, char *buf);
@@ -124,6 +126,10 @@ char *fncs[16] = {UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
                   HOME, INSERT, DELETE, END,
                   PAGE_UP, PAGE_DN, UNKNOWN, UNKNOWN,
                   UNKNOWN, PAU_BRK, UNKNOWN, UNKNOWN};
+char *locks[16] = {MENU, ENTER, UNKNOWN, UNKNOWN,
+                  UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+                  NUMLOCK, SCRLOCK, UNKNOWN, UNKNOWN,
+                  UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN};
 char *locked_nums[17] = {"0", "1", "2", "3",
                          "4", "5", "6", "7",
                          "8", "9", "+", "-",
@@ -157,7 +163,7 @@ void xlate_keysym(keystroke_data *ks_param, char *buf) {
   switch (type) {
     case 0x0 : ksym_std(ks_param, buf);  break;
     case 0x1 : ksym_fnc(ks_param, buf);  break;
-    case 0x2 : break;
+    case 0x2 : ksym_loc(ks_param, buf);  break;
     case 0x3 : ksym_num(ks_param, buf);  break;
     case 0x4 : break;
     case 0x5 : break;
@@ -235,6 +241,29 @@ static void ksym_fnc(keystroke_data *ks, char *buf) {
   }
 }
 
+/*Translate keysymbols with a value of 0x02.
+ *The num and scroll lock keys are included here, hence the name of the method.
+ *All translation is done by indexing into a character string array, as per
+ *usual.  For num and scroll lock though, a status indicator is inserted into
+ *the resultant string.
+ */
+ static void ksym_loc(keystroke_data *ks, char *buf) {
+  int len;
+  unsigned char val  = ks->value & 0x00ff;
+  int n_lock = ks->ledstate & NLOCK_MASK;
+  int s_lock = ks->ledstate & SLOCK_MASK;
+
+  //just in case
+  if (val > 16) return;
+
+  //translate key symbol
+  len = strlcat(buf, locks[val], BUFLEN);
+
+  //handle status indicator for num and scroll lock, respectively
+  if      (val == 0x08) buf[len - 2] = n_lock ? ENABLE : DISABLE;
+  else if (val == 0x09) buf[len - 2] = s_lock ? ENABLE : DISABLE;
+ }
+
 /*Translates number pad keys.
  *The ledstate field of the keyboard_notifier_param must be parsed to determine
  *whether numlock is enabled or not.  See header description for more info on
@@ -308,7 +337,7 @@ static void ksym_cap (keystroke_data *ks, char *buf) {
   //ignore key-press events
   if (ks->down) return;
 
-  if (val == 0x6) {
+  if (val == 0x06) {
     //translate mod key to string
     len = strlcat(buf, CAPLOCK, BUFLEN);
 
