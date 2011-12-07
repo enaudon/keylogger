@@ -44,7 +44,11 @@
  *        - bit 1: num lock
  *    3) value: (arbitrary) short used to identify each key
  *        - interpretation depends on keyboard mode (we assume non-unicode)
- *        - high-order byte is a type; low-order byte is a value
+ *        - low-order byte is a value; high-order byte is a type:
+ *                val----------------------------+
+ *                type--------------------+      |
+ *                                        |      |
+ *                ks->value = 0x1234 = | 0x12 | 0x23 |
  *        - type used to select the appropriate translation function
  *        - value used to perform the actual translation
  */
@@ -79,8 +83,6 @@
 #define ARW_RT  "<r arw>"
 #define F_KEYS  "<f"  //no, i didn't forget the end
 #define CAPLOCK "<cap _>"
-#define NUMLOCK "<num _>"
-#define SCRLOCK "<scl _>"
 
 //string representations for key pressure
 #define PRESS   'p'
@@ -128,7 +130,7 @@ char *fncs[16] = {UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
                   UNKNOWN, PAU_BRK, UNKNOWN, UNKNOWN};
 char *locks[16] = {MENU, ENTER, UNKNOWN, UNKNOWN,
                   UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-                  NUMLOCK, SCRLOCK, UNKNOWN, UNKNOWN,
+                  "<num _>", "<scl _>", UNKNOWN, UNKNOWN,
                   UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN};
 char *locked_nums[17] = {"0", "1", "2", "3",
                          "4", "5", "6", "7",
@@ -180,17 +182,16 @@ void xlate_keysym(keystroke_data *ks_param, char *buf) {
   }
 }
 
-/*Translates normal keys.
+/*Translates "normal" keys--that is, key's that produce ascii.
  *Index into array to get string representations of ascii characters on
  *key-press events.  For printable characters, that's just the character
  *itself; for control characters, that's an abreviation of their function.
  *Key-release events are ignored.
  *
- *Note:
- *For printable ascii characters I could have just returned the key symbol
- *value cast as a character.  However, I opted for a large table because it can
- *also handle control values, and is more easily modified to support an
- *extended ascii character set.
+ *NOTE: For printable ascii characters I could have just returned the key
+ *      symbol value cast as a character.  However, I opted for a large table
+ *      because it can also handle control values, and is more easily modified
+ *      to support an extended ascii character set.
  */
 static void ksym_std(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
@@ -221,8 +222,7 @@ static void ksym_std(keystroke_data *ks, char *buf) {
  *Non-f-keys are handled by using the low nybble of the value field to index
  *into an array of string represenations.
  *
- *NOTE: for testing purposes, try to get your hands on one of the keyboards in
- *      224 (19 f-keys).
+ *NOTE: f-keys are often handled strangely, so logging results may vary.
  */
 static void ksym_fnc(keystroke_data *ks, char *buf) {
   unsigned char val  = ks->value & 0x00ff;
@@ -255,6 +255,9 @@ static void ksym_fnc(keystroke_data *ks, char *buf) {
 
   //just in case
   if (val > 16) return;
+
+  //ignore key-press events
+  if (ks->down) return;
 
   //translate key symbol
   len = strlcat(buf, locks[val], BUFLEN);
@@ -307,6 +310,11 @@ static void ksym_arw(keystroke_data *ks, char *buf) {
  *Appends the appropriate string to the output buffer on both key-press and
  *key-release events.  An event-specific character is inserted into the string
  *to indicate key pressure (p for press, r for release events).
+ *
+ *NOTE: The alt and meta keys both produce the same key symbol, and are
+ *      therefore indistinguishable at this point in the line discipline.  We
+ *      could have captured keycodes instead (each key has a completely unique
+ *      keycode), but the translation process would have been more complex.
  */
 static void ksym_mod(keystroke_data *ks, char *buf) {
   int len;
