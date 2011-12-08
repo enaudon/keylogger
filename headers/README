@@ -3,10 +3,11 @@ FILE.H
 write.  See prototypes for a list of *working* methods.
 
 keysym.h
-----------------------------------------
+--------
      Contains methods for translating key symbols into ASCII-encoded
 characters.  There are a variety of functions, each specific to a particular
 key symbol type, and a wrapper function that selects the appropriate
-translation function.  The individual translation functions shouldn't be called
-directly.  I make no guarantee that they'll work without the wrapper, so just
-call the wrapper.  See comments for details on how to call the wrapper.
+translation function.  To simplify the translation process, I've also written a
+wrapper function that uses the type-specific translation functions to do the
+translation.  Also, I make no guarantee that the type-specific functions will
+without the wrapper, so just call the wrapper please.
