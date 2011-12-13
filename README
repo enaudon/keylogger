@@ -9,9 +9,10 @@ UTILS
   - utility scripts
   - user-space test programs
 
-KEYLOGGER.C
-     Right now, keylogger.c hijacks the sys_read function and intercepts any
-attempts to read from stdin.  The thought process here is that stdin typically
-"points" to the keyboard.  File io is done using the kfile header file (can I
-call it a library?).  SERIOUS work needs to be done about filtering what read
-attempts we intercept.
+LOGGERS
+  - all of the various keyloggers
+  - each has its own sub-directory, which should contain...
+      - source code
+      - Makefile
+      - README
+
