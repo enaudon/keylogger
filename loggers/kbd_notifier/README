@@ -1,0 +1,54 @@
+Description:
+-----------
+      This is a kernel-based keylogger written for linux.  It is (most
+unoriginally) named kbd_notifier, after its method of capturing keystrokes. To
+do its keylogging, kbd_notifier abuses the linux notifier chains, through which kernel modules may request notice when a kernel event occurs. kbd_notifier
+registers for notification when keystrokes occur, and simply logs each
+keystroke as it happens.
+
+Usage:
+-----
+     This module was written in C for linux v2.6.  It requires a Makefile to be
+compiled.  Further, kbd_notifier relies on two header files, kfile.h and
+keysym.h.  These files must be stored in a directory called "headers" which is
+in the same directory as kbd_notifier's source.  The directory containing
+kbd_notifier should look like this:
+
+   .
+   |--headers
+   |   |--kfile.h
+   |   `--keysym.h
+   |
+   |--kbd_notifier.c
+   `--Makefile
+
+Assuming that the module's source, the Makefile and the header directory are in
+the same directory, kbd_notifier can be installed using the following two
+commands:
+
+   make
+   insmod kbd_notifier.ko
+
+Once installed, kbd_notifier can be removed with the following command:
+
+   rmmod kbd_notifier
+
+Note that, appart from make, all commands must be executed with super-user
+priviledges.  To remove itermediate build files, run the following command:
+
+   make clean
+
+     Once kbd_notifier is installed, it will begin capturing keystrokes right
+away.  However, these keystrokes will not be stored to a log file until
+kbd_notifier is removed from the system.  Once removed, the log file,
+notifier.log, will appear in the same directory that kbd_notifier.ko was in.
+
+Technical Information:
+---------------------
+     All testing was done on a VirtualBox virtual machine with 1 32-bit CPU,
+1024MB of RAM and 12MB of video RAM.  The VM was running Ubuntu 11.4 Server on
+top of linux kernel v2.6.38-8-pae.  The host system was a Sager NP7280-S1 with
+12-core Intel Core i7 x990 CPUs, 12GB of RAM and 2 GeForce GTX 580M GPUs, with
+2GB of video RAM each.  The host system ran Ubuntu 10.04 Desktop.  Throughout
+development, the host machine ran 3 different linux kernels: v2.6.32-{34,35,36}
+

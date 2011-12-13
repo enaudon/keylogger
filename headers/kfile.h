@@ -5,86 +5,97 @@
 typedef struct file file;
 
 file* kopen(const char *fp, int flags, int mode);
-void kclose(file *file);
+int kread(file* file, loff_t off, char *buf, unsigned int size);
 int kwrite(file *file, loff_t off, char* buf, unsigned int size);
+void kclose(file *file);
+
+/*Allow the file system to take kernel pointers.
+ *
+ *Note:
+ *This one could do with a better name methinks.
+ */
+#define MODIFY_FS \
+  mm_segment_t old_fs = get_fs();\
+  set_fs(get_ds());
+
+/*Restore the pointer range that the fs will accept.
+ */
+#define RESTORE_FS \
+  set_fs(old_fs);
 
 /*Opens the specified file.
  *
- *@param fp    file path
- *@param flags flags (not sure about this)
- *@param mode  permissions (this should be octal)
+ *Parameters:
+ *  fp    - file path to be opened
+ *  flags - flags dictating file usage (read, write, exec, etc.)
+ *  mode  - permissions (this should be octal)
+ *
+ *Returns:
+ *  pointer to file struct
  */
 file* kopen(const char *fp, int flags, int mode) {
-  file* file = NULL;
-
-  //allow the file system to take kernel-pointers
-  mm_segment_t stored_fs = get_fs();
-  set_fs(get_ds());
+  file *file = NULL;
 
   //open the file
+  MODIFY_FS
   file = filp_open(fp, flags, mode);
-
-  //restore ok-ness of kernel-space pointers
-  set_fs(stored_fs);
+  RESTORE_FS
 
   return file;
+}
+
+/*Reads from the specified file.
+ *
+ *Parameters:
+ *  file - the file to reading from
+ *  off  - byte to start reading from
+ *  buf  - buffer to place read bytes into
+ *  size - number of bytes to read
+ *
+ *Returns:
+ *  number of bytes read
+ */
+int kread(file* file, loff_t off, char *buf, unsigned int size) {
+  int ret;
+
+  //read from the file
+  MODIFY_FS
+  ret = vfs_read(file, buf, size, &off);
+  RESTORE_FS
+
+  return ret;
+}
+
+/*Writes to the specified file.
+ *
+ *Parameters:
+ *  file - the file to writing to
+ *  off  - byte to start writing at
+ *  buf  - bytes to write
+ *  size - number of bytes to write
+ *
+ *Returns:
+ *  number of bytes written
+ */
+int kwrite(file *file, loff_t off, char *buf, unsigned int size) {
+  int ret;
+
+  //write to the file
+  MODIFY_FS
+  ret = vfs_write(file, buf, size, &off);
+  RESTORE_FS
+
+  return ret;
 }
 
 /*Closes the specified file.
  *Notice that we can ignore the file descriptor since we keep this file
  *completely in kernel-space.  (It has no file descriptor.)
  *
- *@param file   the file to be closed
+ *Parameter
+ *  file - the file to be closed
  */
 void kclose(file *file) {
-    filp_close(file, NULL);
-}
-
-/*Writes to the specified file.
- *
- *@param file the file to writing to
- *@param off  byte to start writing at
- *@param buf  bytes to write
- *@param size number of bytes to write
- */
-int kwrite(file *file, loff_t off, char *buf, unsigned int size) {
-  int ret;
-
-  //allow the file system to take kernel-pointers
-  mm_segment_t stored_fs = get_fs();
-  set_fs(get_ds());
-
-  //write to the file
-  ret = vfs_write(file, buf, size, &off);
-
-  //restore ok-ness of kernel-space pointers
-  set_fs(stored_fs);
-
-  return ret;
-}
-
-/*Reads from the specified file.
- *IMPORTANT: This method is broken.  It always seems to return -EBADF.  I don't
- *           know why.  (If I did I'd probably fix it...)
- *
- *@param file the file to reading from
- *@param off  byte to start reading from
- *@param buf  buffer to place read bytes into
- *@param size number of bytes to read
- */
-int kread(file* file, loff_t off, char *buf, unsigned int size) {
-  int ret;
-
-  //allow the file system to take kernel-pointers
-  mm_segment_t stored_fs = get_fs();
-  set_fs(get_ds());
-
-  //read from the file
-  ret = vfs_read(file, buf, size, &off);
-
-  //restore ok-ness of kernel-space pointers
-  set_fs(stored_fs);
-
-  return ret;
+  filp_close(file, NULL);
 }
 
