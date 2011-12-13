@@ -90,13 +90,14 @@ int kstroke_handler(struct notifier_block *nb,
       break;
 
     case KBD_KEYSYM :
-      //igore key symbols *for now*
-      //as before, the kernel will do a little more work for us
+      //now grab key symbols and translate them
+      xlate_keysym(kbd_np, trans);
       break;
 
     case KBD_POST_KEYSYM :
-      //now grab key symbols and translate them
-      xlate_keysym(kbd_np, trans);
+      //the kernel can do more processing for us, but we don't let it for
+      //backwards-compatibility reasons: older kernel's don't take this step
+      //for most keys.
       break;
 
     default :
