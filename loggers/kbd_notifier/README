@@ -2,7 +2,8 @@ Description:
 -----------
       This is a kernel-based keylogger written for linux.  It is (most
 unoriginally) named kbd_notifier, after its method of capturing keystrokes. To
-do its keylogging, kbd_notifier abuses the linux notifier chains, through which kernel modules may request notice when a kernel event occurs. kbd_notifier
+do its keylogging, kbd_notifier abuses the linux notifier chains, through which
+kernel modules may request notice when a kernel event occurs. kbd_notifier
 registers for notification when keystrokes occur, and simply logs each
 keystroke as it happens.
 
